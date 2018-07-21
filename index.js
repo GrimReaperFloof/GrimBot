@@ -2,6 +2,8 @@ const Discord = require('discord.js');
 const fs = require('fs');
 const client = new Discord.Client();
 
+const commandManager = require('./commandManager.js');
+
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
 let guildConf = JSON.parse('{}');
@@ -56,12 +58,15 @@ client.on('message', message => {
             isCommand = true;
         }
 
-        if (message.content === '<@!' + client.user.id + '>') {
+        if (message.content === '<@' + client.user.id + '>') {
             message.channel.send('My prefix is: "' + config.defaultPrefix);
         }
     }
 
-    if (message.content.startsWith('<@!' + client.user.id + '> ')) {
+    if (message.content.startsWith('<@' + client.user.id + '> ')) {
+        isCommand = true;
+        prefix = '<@' + client.user.id + '> ';
+    } else if (message.content.startsWith('<@!' + client.user.id + '> ')) {
         isCommand = true;
         prefix = '<@!' + client.user.id + '> ';
     }
@@ -71,29 +76,19 @@ client.on('message', message => {
         const command = message.content.replace(prefix, '').split(' ')[0];
         // const args = message.content.split(' ').slice(1);
 
-        if (command === 'help') {
-            message.channel.send({ embed: {
-                color: 16726843,
-                author: {
-                    name: client.user.username,
-                    icon_url: client.user.avatarURL,
-                },
-                title: 'Commands',
-                description: 'Mention the bot to get the prefix.',
-                fields: [{
-                    name: 'help',
-                    value: 'Syntax: <prefix>help\nDisplays this helpful command list.',
-                },
-                {
-                    name: 'prefix',
-                    value: 'Syntax: <prefix>prefix <newPrefix, supports prefixes within double quotes>\nChange the prefix for this guild.',
-                },
-                ],
-            },
-            });
+        if (commandManager.parseCommand(command) === 'help') {
+            let output = 'You can mention the bot to get the prefix, or you can mention the bot and execute a command that way.\n\nExamples:\n`<bot-mention>` will show the prefix.\n`<bot-mention> help` will execute help.\n\nCommands:\n';
+
+            for (let i = 0; i < Object.keys(commandManager.commands).length; i++) {
+                const commandFromCommands = commandManager.commands[Object.keys(commandManager.commands)[i]];
+
+                output = output + '`' + prefix + commandFromCommands.syntax + '`: ' + commandFromCommands.description + '\n';
+            }
+
+            message.channel.send(output);
         }
 
-        if (command === 'prefix') {
+        if (commandManager.parseCommand(command) === 'prefix') {
             if (!message.member.hasPermission('MANAGE_GUILD')) {
                 message.channel.send('You need the MANAGE_GUILD (Manage Server) permission to use this command.');
                 return;
@@ -104,7 +99,7 @@ client.on('message', message => {
             newPrefix = newPrefix.replace(/^\s+/g, '');
 
             guildConf[message.guild.id] = {
-                prefix: newPrefix,
+                prefix: newPrefix
             };
 
             if (guildConf[message.guild.id].prefix == '') {
